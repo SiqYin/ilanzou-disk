@@ -67,9 +67,9 @@ export default class AppWindow {
           })
       })
 
+      // 更新检查失败（如断网、仓库没有 release）时只记录日志，不弹窗阻塞应用启动
       autoUpdater.on('error', error => {
-        console.error('更新错误:', error)
-        dialog.showErrorBox('更新错误', `更新过程中发生错误: ${error.message}`)
+        console.error('更新错误:', error.message)
       })
     }
   }
