@@ -30,9 +30,11 @@ function getProxyAgents(): {http: any; https: any} | undefined {
   }
   if (cachedProxy !== proxy) {
     cachedProxy = proxy
+    // rejectUnauthorized 运行时会透传给 Node agent，hpagent 的 TS 类型未声明
+    const agentOptions: any = {proxy, rejectUnauthorized: false}
     cachedAgents = {
-      http: new HttpProxyAgent({proxy, rejectUnauthorized: false}),
-      https: new HttpsProxyAgent({proxy, rejectUnauthorized: false}),
+      http: new HttpProxyAgent(agentOptions),
+      https: new HttpsProxyAgent(agentOptions),
     }
   }
   return cachedAgents!
@@ -55,7 +57,11 @@ const base = got.extend({
     ],
     beforeRequest: [
       options => {
-        options.agent = getProxyAgents() as any
+        // 未配置代理时不设置 agent（got 不接受显式 undefined）
+        const agents = getProxyAgents()
+        if (agents) {
+          options.agent = agents as any
+        }
       },
     ],
     afterResponse: [
