@@ -3,6 +3,75 @@ import {cookieJar} from '../../common/cookie'
 import {config} from '../store/Config'
 import project from '../../project.config'
 
+/**
+ * 覆盖官网登录页的 uselogin：
+ * - 官网页面用的是 2008 年的 jQuery 1.2.6，在新内核下 show() 失效，登录失败的提示用户根本看不到，
+ *   且 jquery.js 加载失败时点击按钮会直接无反应（海外网络下很常见）
+ * - 这里改用 fetch 提交登录请求，并用自定义悬浮提示显示所有登录反馈
+ */
+const LOGIN_OVERRIDE_SCRIPT = `(() => {
+  if (window.__lzLoginPatched) return 'already'
+  if (!document.getElementById('username') || !document.getElementById('s3')) return 'no-form'
+  window.__lzLoginPatched = true
+
+  const showToast = text => {
+    let el = document.getElementById('__lz_login_msg')
+    if (!el) {
+      el = document.createElement('div')
+      el.id = '__lz_login_msg'
+      el.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#fff7e6;border:1px solid #ffd591;color:#ad6800;padding:8px 16px;border-radius:6px;font-size:14px;z-index:99999;box-shadow:0 2px 8px rgba(0,0,0,.15);display:none;'
+      document.body.appendChild(el)
+    }
+    el.innerText = text
+    el.style.display = 'block'
+    clearTimeout(el.__timer)
+    el.__timer = setTimeout(() => (el.style.display = 'none'), 6000)
+  }
+
+  window.uselogin = () => {
+    const username = document.getElementById('username').value
+    const password = document.getElementById('password').value
+    if (!username) { showToast('请输入账户'); return false }
+    if (password.length < 6) { showToast('请输入密码'); return false }
+
+    const btn = document.getElementById('s3')
+    btn.disabled = true
+    btn.value = '正在登录中...'
+
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 30000)
+
+    fetch('/accounts.php', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'task=uselogin&username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password) + '&ref=lanzou.com',
+      signal: controller.signal,
+    })
+      .then(r => r.json())
+      .then(msg => {
+        clearTimeout(timer)
+        if (msg.zt == '1') {
+          btn.value = '登录成功，跳转中...'
+          showToast('登录成功')
+          // 跳转中转鉴权页，之后由客户端监听 cookie 变化接管
+          window.location.href = msg.msgs
+        } else {
+          btn.disabled = false
+          btn.value = '登 录'
+          showToast(msg.msgs || '登录失败，请检查账号和密码')
+        }
+      })
+      .catch(() => {
+        clearTimeout(timer)
+        btn.disabled = false
+        btn.value = '登 录'
+        showToast('登录失败，网络异常请重试')
+      })
+    return false
+  }
+  return 'patched'
+})()`
+
 export const login = async () => {
   let parent = getCurrentWindow()
   const bounds = parent.getBounds()
@@ -10,6 +79,17 @@ export const login = async () => {
 
   let win = new BrowserWindow({...bounds, title: '登录'})
   parent.hide()
+
+  // 海外优化：登录窗口的页面加载和表单提交走配置的代理
+  try {
+    if (config.proxy) {
+      await session.defaultSession.setProxy({proxyRules: config.proxy.replace(/^https?:\/\//, '')})
+    } else {
+      await session.defaultSession.setProxy({mode: 'direct'})
+    }
+  } catch {
+    // 代理设置失败时按直连继续
+  }
 
   let winBounds = null
   win.on('moved', event => event.sender && (winBounds = event.sender.getBounds()))
@@ -117,6 +197,15 @@ export const login = async () => {
     }
   }
   win.webContents.on('did-finish-load', applyHiding)
+  // 每次页面加载完成（含 JS 质挑战刷新后）注入覆盖版登录逻辑
+  win.webContents.on('did-finish-load', () => {
+    try {
+      if (!win || win.isDestroyed()) return
+      win.webContents.executeJavaScript(LOGIN_OVERRIDE_SCRIPT).catch(() => {})
+    } catch {
+      // 窗口可能已销毁
+    }
+  })
 
   // 会话中已有登录 cookie 时无需再登录
   if (await checkCookies(win.webContents, true)) {
