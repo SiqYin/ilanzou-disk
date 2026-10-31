@@ -21,7 +21,7 @@ export function useLatestRelease() {
     setError(null)
     try {
       const value = await http.share
-        .get('https://api.github.com/repos/chenhb23/lanzouyun-disk/releases/latest')
+        .get('https://api.github.com/repos/SiqYin/lanzouyun-disk/releases/latest')
         .json<LatestRelease>()
       if (value && gt(value.tag_name, pkg.version)) {
         setLatestVersion(value)
