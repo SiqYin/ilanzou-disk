@@ -1,4 +1,5 @@
 import {Matcher} from './matcher'
+import {fetchSharePage, validateSharePage} from './share-domains'
 import * as http from '../http'
 
 /**
@@ -6,15 +7,15 @@ import * as http from '../http'
  * script
  */
 export async function pwdFileDownUrl(url: string, pwd: string) {
-  const instance = http.share.get(url)
-  const response = await instance
-  url = response.url
-  const html = await instance.text()
+  // 抓取分享页面，打不开时自动切换蓝奏云其他域名重试
+  const page = await fetchSharePage(url, validateSharePage)
+  url = page.url
+  const html = page.html
 
   const ajaxData = await Matcher.parsePwdAjax(html, pwd)
 
   const value = await http
-    .share(new URL(ajaxData.url, url), {
+    .sharePage(new URL(ajaxData.url, url), {
       method: ajaxData.type,
       headers: {referer: url},
       form: ajaxData.data,
@@ -32,10 +33,10 @@ export async function pwdFileDownUrl(url: string, pwd: string) {
  * iframe
  */
 export async function fileDownUrl(url: string) {
-  const instance = http.share.get(url)
-  const response = await instance
-  url = response.url
-  const html = await instance.text()
+  // 抓取分享页面，打不开时自动切换蓝奏云其他域名重试
+  const page = await fetchSharePage(url, validateSharePage)
+  url = page.url
+  const html = page.html
 
   const iframe = Matcher.matchIframe(html)
   if (!iframe) {
@@ -43,11 +44,11 @@ export async function fileDownUrl(url: string) {
   }
 
   const iframeUrl = new URL(iframe, url).toString()
-  const downHtml = await http.share.get(iframeUrl).text()
+  const downHtml = await http.sharePage.get(iframeUrl).text()
 
   const ajaxData = await Matcher.parseAjax(downHtml)
   const value = await http
-    .share(new URL(ajaxData.url, url), {
+    .sharePage(new URL(ajaxData.url, url), {
       method: ajaxData.type,
       headers: {referer: iframeUrl},
       form: ajaxData.data,

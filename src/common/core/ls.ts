@@ -3,6 +3,7 @@ import type {Cheerio} from 'cheerio'
 import {byteToSize, delay, sizeToByte} from '../util'
 import {Matcher} from './matcher'
 import * as http from '../http'
+import {fetchSharePage, validateSharePage} from './share-domains'
 import {config} from '../../renderer/store/Config'
 
 export enum URLType {
@@ -122,11 +123,11 @@ export interface LsShareItem {
  * * 密码: #pwdload
  */
 export async function lsShare({url, pwd}: {url: string; pwd?: string}): Promise<LsShareObject> {
-  const instance = http.share.get(url)
-  const response = await instance
-  const html = await instance.text()
+  // 抓取分享页面，打不开时自动切换蓝奏云其他域名重试（海外域名轮换/劫持兜底）
+  const page = await fetchSharePage(url, validateSharePage)
+  const html = page.html
   // 覆盖原url（防url重定向）
-  url = response.url
+  url = page.url
 
   const $ = cheerio.load(html)
 
@@ -168,7 +169,7 @@ export async function lsShare({url, pwd}: {url: string; pwd?: string}): Promise<
     const ajaxData = await Matcher.parsePwdAjax(html, pwd)
 
     const {inf} = await http
-      .share(new URL(ajaxData.url, url), {
+      .sharePage(new URL(ajaxData.url, url), {
         method: ajaxData.type,
         headers: {referer: url},
         form: ajaxData.data,
@@ -206,10 +207,9 @@ export async function lsShare({url, pwd}: {url: string; pwd?: string}): Promise<
  */
 async function _lsShareFolder({url, pwd, html}: {url: string; pwd?: string; html?: string}) {
   if (!html) {
-    const instance = http.share.get(url)
-    const response = await instance
-    url = response.url
-    html = await instance.text()
+    const page = await fetchSharePage(url, validateSharePage)
+    url = page.url
+    html = page.html
   }
 
   const $ = cheerio.load(html)
@@ -222,7 +222,7 @@ async function _lsShareFolder({url, pwd, html}: {url: string; pwd?: string; html
 
   while (true) {
     const {text} = await http
-      .share(new URL(ajaxData.url, url), {
+      .sharePage(new URL(ajaxData.url, url), {
         method: ajaxData.type,
         headers: {referer: url},
         form: {...ajaxData.data, pg: pg++, pwd},

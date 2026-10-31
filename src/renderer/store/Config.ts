@@ -29,6 +29,11 @@ export class Config {
   }
   // 设置 prefixUrl
   @persist lanzouUrl = ''
+
+  // 海外网络优化：HTTP 代理地址（如 http://127.0.0.1:7890），留空直连
+  @persist proxy = ''
+  // 最近一次成功访问分享链接使用的 base 域名，下次解析优先尝试
+  @persist lastShareDomain = ''
   // *** 网络配置 end ***
 
   // *** 本地配置 start ***

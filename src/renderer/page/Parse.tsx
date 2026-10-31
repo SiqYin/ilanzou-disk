@@ -6,10 +6,16 @@ import {lsShare, LsShareObject, URLType} from '../../common/core/ls'
 import {MyBar} from '../component/Bar'
 import {MyIcon} from '../component/Icon'
 import {useLoading} from '../hook/useLoading'
-import {download} from '../store'
+import {download, sync} from '../store'
 import {isFile} from '../../common/util'
 import {Button, Checkbox, Col, Input, message, Row, Table} from 'antd'
+import {CloudUploadOutlined} from '@ant-design/icons'
 import {DownloadTask} from '../store/task/DownloadTask'
+import {SyncTask} from '../store/task/SyncTask'
+import {config} from '../store/Config'
+import {linkBar} from '../store/LinkBar'
+import {getDownloadDir} from './Setting'
+import {SelectFolderModal} from './Files/SelectFolderModal'
 import SizeBox from '../component/SizeBox'
 
 export default function Parse() {
@@ -23,6 +29,10 @@ export default function Parse() {
   const [urlForm, setUrlForm] = useState({url: '', pwd: ''})
 
   const [selectedRows, setSelectedRows] = useState<LsShareObject['list']>([])
+
+  // 保存到网盘（转存：先下载到本地，再自动上传到网盘对应文件夹）
+  const [saveFolderOpen, setSaveFolderOpen] = useState(false)
+  const [saveRows, setSaveRows] = useState<LsShareObject['list']>([])
 
   // 如果只下载其中一部分文件，不进行合并
   useEffect(() => {
@@ -50,6 +60,47 @@ export default function Parse() {
       setSelectedRows(prev => (prev.length ? [] : prev))
     } catch (e: any) {
       console.error('e', e)
+      message.error(e.message)
+    }
+  }
+
+  // 全局链接栏提交后自动解析
+  useEffect(() => {
+    if (!linkBar.url) return
+    const form = {url: linkBar.url, pwd: linkBar.pwd}
+    setUrlForm(form)
+    parse(form)
+  }, [linkBar.seq])
+
+  const openSave = (rows: LsShareObject['list']) => {
+    if (!rows.length) return
+    if (!config.isLogin) {
+      return message.warning('保存到网盘需要先登录账号')
+    }
+    setSaveRows(rows)
+    setSaveFolderOpen(true)
+  }
+
+  const handleSaveToDisk = async (folderId: FolderId) => {
+    try {
+      const dir = await getDownloadDir()
+      for (const row of saveRows) {
+        await sync.addTask(
+          new SyncTask({
+            folderId,
+            trashOnFinish: false,
+            download: new DownloadTask({
+              name: row.name,
+              url: row.url,
+              pwd: row.pwd,
+              dir,
+            }),
+          })
+        )
+      }
+      message.success(`已添加 ${saveRows.length} 个转存任务，下载完成后会自动上传到网盘对应文件夹`)
+      setSaveFolderOpen(false)
+    } catch (e: any) {
       message.error(e.message)
     }
   }
@@ -162,6 +213,17 @@ export default function Parse() {
                   </Button>
                 )}
               </Col>
+              <Col>
+                {selectedRows.length ? (
+                  <Button icon={<CloudUploadOutlined />} onClick={() => openSave(selectedRows)}>
+                    保存到网盘 ({selectedRows.length}项)
+                  </Button>
+                ) : (
+                  <Button icon={<CloudUploadOutlined />} disabled={!total} onClick={() => openSave(list)}>
+                    全部保存到网盘
+                  </Button>
+                )}
+              </Col>
             </Row>
           </MyHeader>
           <MyBar>
@@ -250,6 +312,15 @@ export default function Parse() {
           />
         )}
       </SizeBox>
+      <SelectFolderModal
+        currentFolder={-1}
+        open={saveFolderOpen}
+        allowSame
+        title={`保存到我的网盘${saveRows.length ? `（${saveRows.length} 项）` : ''}`}
+        okTextPrefix={'保存到'}
+        onCancel={() => setSaveFolderOpen(false)}
+        onOk={handleSaveToDisk}
+      />
     </MyScrollView>
   )
 }

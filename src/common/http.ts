@@ -1,11 +1,42 @@
 import got from 'got'
 import {message} from 'antd'
 import is from 'electron-is'
+import {HttpProxyAgent, HttpsProxyAgent} from 'hpagent'
 
 import {cookieJar, shareCookieJar} from './cookie'
 import {delay} from './util'
 import {config} from '../renderer/store/Config'
 import {logout} from '../renderer/utils/app'
+
+/**
+ * 海外网络优化：读取用户配置的 HTTP 代理（为空时回退到环境变量），
+ * 分享链接解析、下载、转存等所有请求都会走该代理
+ */
+let cachedAgents: {http: any; https: any} | null = null
+let cachedProxy = ''
+
+function getProxyAgents(): {http: any; https: any} | undefined {
+  const proxy =
+    config.proxy ||
+    process.env.HTTPS_PROXY ||
+    process.env.https_proxy ||
+    process.env.HTTP_PROXY ||
+    process.env.http_proxy ||
+    ''
+  if (!proxy) {
+    cachedAgents = null
+    cachedProxy = ''
+    return undefined
+  }
+  if (cachedProxy !== proxy) {
+    cachedProxy = proxy
+    cachedAgents = {
+      http: new HttpProxyAgent({proxy, rejectUnauthorized: false}),
+      https: new HttpsProxyAgent({proxy, rejectUnauthorized: false}),
+    }
+  }
+  return cachedAgents!
+}
 
 const base = got.extend({
   headers: {
@@ -20,6 +51,11 @@ const base = got.extend({
     init: [
       (_, self) => {
         self.headers['user-agent'] = config.userAgent
+      },
+    ],
+    beforeRequest: [
+      options => {
+        options.agent = getProxyAgents() as any
       },
     ],
     afterResponse: [
@@ -101,4 +137,13 @@ export const request = got.extend(base, {
 export const share = got.extend(base, {
   cookieJar: shareCookieJar,
   ignoreInvalidCookies: true,
+})
+
+/**
+ * 分享页面 / 分享接口专用：带请求超时。
+ * 海外网络下部分域名可能长时间无响应，不设超时会一直挂起；
+ * 下载大文件的流式请求仍使用 share（无超时）。
+ */
+export const sharePage = got.extend(share, {
+  timeout: {request: 30000},
 })

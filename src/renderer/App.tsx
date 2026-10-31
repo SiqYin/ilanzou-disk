@@ -1,7 +1,7 @@
 import React, {useMemo, useState} from 'react'
 import {observer} from 'mobx-react'
 import {shell} from '@electron/remote'
-import {Layout, Menu, Tabs} from 'antd'
+import {Button, Input, Layout, Menu, Tabs, message} from 'antd'
 import {
   CheckCircleOutlined,
   CloudDownloadOutlined,
@@ -12,6 +12,7 @@ import {
   ScissorOutlined,
   SettingOutlined,
   CloudSyncOutlined,
+  ThunderboltOutlined,
 } from '@ant-design/icons'
 
 // 早点引入样式，确保后来的样式可以覆盖之前的
@@ -34,14 +35,38 @@ import Sync from './page/Sync'
 import {sync} from './store/Sync'
 import {taskLength} from './utils/task'
 import {config} from './store/Config'
+import {linkBar} from './store/LinkBar'
 import AuthWrapper from './page/AuthWrapper'
 
 const App = observer(() => {
   const [activeKey, setActiveKey] = useState('1')
   const [webviewKey, setWebviewKey] = useState(1)
+  const [barUrl, setBarUrl] = useState('')
+  const [barPwd, setBarPwd] = useState('')
 
   const lanzouUrl = config.lanzouUrl
   const recycleUrl = useMemo(() => (lanzouUrl ? new URL(project.page.recycle, lanzouUrl).href : ''), [lanzouUrl])
+
+  // 全局链接栏提交：切换到解析页并自动解析
+  const submitLinkBar = async () => {
+    let url = barUrl.trim()
+    if (!url) {
+      try {
+        const clipboardText = await navigator.clipboard.readText()
+        if (/^https?:\/\//.test(clipboardText.trim())) {
+          url = clipboardText.trim()
+          setBarUrl(url)
+        }
+      } catch {
+        // 读取粘贴板失败时忽略，提示用户手动输入
+      }
+    }
+    if (!url) {
+      return message.info('请输入分享链接')
+    }
+    linkBar.submit(url, barPwd)
+    setActiveKey('5')
+  }
 
   return (
     <Layout>
@@ -115,6 +140,41 @@ const App = observer(() => {
         </div>
       </Layout.Sider>
       <Layout>
+        <Layout.Header
+          className={'link-bar'}
+          style={{
+            background: '#fff',
+            padding: '0 12px',
+            height: 46,
+            lineHeight: '46px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <LinkOutlined style={{fontSize: 16, color: '#1890ff'}} />
+          <Input
+            size={'small'}
+            allowClear
+            value={barUrl}
+            placeholder={'粘贴蓝奏云分享链接，回车立即解析（链接打不开会自动尝试其他域名）'}
+            onChange={event => setBarUrl(event.target.value)}
+            onPressEnter={submitLinkBar}
+            style={{maxWidth: 560}}
+          />
+          <Input
+            size={'small'}
+            allowClear
+            value={barPwd}
+            placeholder={'密码，选填'}
+            onChange={event => setBarPwd(event.target.value)}
+            onPressEnter={submitLinkBar}
+            style={{width: 110}}
+          />
+          <Button size={'small'} type={'primary'} icon={<ThunderboltOutlined />} onClick={submitLinkBar}>
+            解析并下载
+          </Button>
+        </Layout.Header>
         <Layout.Content>
           <Tabs activeKey={activeKey} renderTabBar={() => null}>
             <Tabs.TabPane key={'1'}>

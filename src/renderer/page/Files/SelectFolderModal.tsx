@@ -7,6 +7,14 @@ import {MyIcon} from '../../component/Icon'
 
 interface SelectFolderModalProps {
   currentFolder: FolderId
+  // 显式控制弹窗显示（默认按 currentFolder 是否有值判断）
+  open?: boolean
+  // 自定义弹窗标题（默认：选择文件夹）
+  title?: string
+  // 自定义确认按钮文案前缀（默认：移动到）
+  okTextPrefix?: string
+  // 允许选择与 currentFolder 相同的目录（如转存时允许保存到根目录）
+  allowSame?: boolean
   onCancel?: () => void
   /**
    * level: 要移动的文件夹处于第几层级
@@ -65,7 +73,7 @@ export function SelectFolderModal(props: SelectFolderModalProps) {
     await delay(1)
   }, [])
 
-  const visible = !!props.currentFolder
+  const visible = props.open ?? !!props.currentFolder
 
   useEffect(() => {
     if (visible) {
@@ -77,21 +85,21 @@ export function SelectFolderModal(props: SelectFolderModalProps) {
     <Modal
       width={600}
       open={visible}
-      title={'选择文件夹'}
+      title={props.title || '选择文件夹'}
       confirmLoading={confirmLoading}
       okText={
         <span style={{maxWidth: 150, textOverflow: 'ellipsis', overflow: 'hidden'}}>
           {!select?.title
             ? '请选择目录'
-            : select?.key === props.currentFolder
+            : !props.allowSame && select?.key === props.currentFolder
             ? '不能移动到相同目录'
-            : `移动到：${select.title}`}
+            : `${props.okTextPrefix || '移动到'}：${select.title}`}
         </span>
       }
       cancelButtonProps={{style: {verticalAlign: 'middle'}}}
       okButtonProps={{
         type: 'primary',
-        disabled: !select || select.key === props.currentFolder,
+        disabled: !select || (!props.allowSame && select.key === props.currentFolder),
         style: {verticalAlign: 'middle'},
       }}
       onCancel={props.onCancel}

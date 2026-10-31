@@ -80,6 +80,20 @@ const Setting = observer(() => {
             </Col>
           </Row>
         </Form.Item>
+        <Form.Item label={'网络代理'} wrapperCol={{flex: '400px'}}>
+          <Space direction={'vertical'} style={{width: '100%'}}>
+            <Input
+              allowClear
+              placeholder={'http://127.0.0.1:7890，留空直连'}
+              value={config.proxy}
+              onChange={event => (config.proxy = event.target.value.trim())}
+            />
+            <Typography.Text type={'secondary'}>
+              海外用户建议填写本地 HTTP 代理地址（如 Clash 的 http://127.0.0.1:7890），
+              分享链接解析、下载和转存都会走此代理；链接打不开时也会自动尝试蓝奏云其他域名
+            </Typography.Text>
+          </Space>
+        </Form.Item>
         <Form.Item label={'同时任务数'}>
           <Space direction={'vertical'}>
             <Space>

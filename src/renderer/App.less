@@ -49,8 +49,9 @@ body {
 }
 
 // tabs
+// 顶部有全局链接栏（46px），减去对应高度防止底部溢出
 .ant-tabs-tabpane {
-  height: 100vh;
+  height: calc(100vh - 46px);
   overflow: hidden;
 }
 
