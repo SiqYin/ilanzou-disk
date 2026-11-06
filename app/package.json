@@ -1,6 +1,6 @@
 {
   "name": "lanzouyun-disk",
-  "version": "4.0.3",
+  "version": "4.0.5",
   "private": true,
   "main": "build/main/index.js",
   "description": "蓝奏云网盘客户端",

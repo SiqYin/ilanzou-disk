@@ -1,3 +1,4 @@
+import net from 'net'
 import {BrowserWindow, getCurrentWindow, session} from '@electron/remote'
 import {cookieJar} from '../../common/cookie'
 import {config} from '../store/Config'
@@ -101,7 +102,11 @@ const LOGIN_OVERRIDE_SCRIPT = `(() => {
         } else {
           btn.disabled = false
           btn.value = '登 录'
-          showToast(msg.msgs || '登录失败，请检查账号和密码')
+          let tip = (msg.msgs || '登录失败，请检查账号和密码') + '（代码 ' + msg.zt + '）'
+          if (String(msg.msgs || '').indexOf('用户名') >= 0 && /^1\\d{10}$/.test(username)) {
+            tip += '；您的账号是手机号但被拒绝：请到官网 pc.woozooo.com 登录页试登录，确认该账号可用的登录名（部分账号需用设置的用户名而非手机号），或通过官网「找回密码」查看登录名'
+          }
+          showToast(tip, 15000)
         }
       })
       .catch(() => {
@@ -123,17 +128,8 @@ export const login = async () => {
   let win = new BrowserWindow({...bounds, title: '登录'})
   parent.hide()
 
-  // 海外优化：登录窗口的页面加载和表单提交走配置的代理
-  try {
-    if (config.proxy) {
-      await session.defaultSession.setProxy({proxyRules: config.proxy.replace(/^https?:\/\//, '')})
-    } else {
-      // 未配置时跟随系统代理（默认行为）。不能强制 direct，否则会覆盖海外用户的系统级代理
-      await session.defaultSession.setProxy({mode: 'system'})
-    }
-  } catch {
-    // 代理设置失败时按直连继续
-  }
+  // 立即显示加载占位页，避免登录窗口初始白屏（真实登录页可能需要 1 分钟轮换重试）
+  win.loadURL(LOADING_PAGE_HTML).catch(() => {})
 
   let winBounds = null
   win.on('moved', event => event.sender && (winBounds = event.sender.getBounds()))
@@ -228,20 +224,24 @@ export const login = async () => {
   // 登录窗口关闭时移除 session 上的监听
   win.once('closed', cleanSessionListeners)
 
-  // 官网登录页可能先返回 JS 质询页再刷新到真正的登录表单，
-  // 只有页面存在登录表单（.p1）时才注入隐藏其余内容的 CSS，避免表单不存在时整页被隐藏导致白屏
-  const applyHiding = async () => {
-    try {
-      if (!win || win.isDestroyed()) return
-      const hasForm = await win.webContents.executeJavaScript("!!document.querySelector('.p1')")
-      if (hasForm)
-        await win.webContents.insertCSS('*{visibility:hidden}.p1{visibility:visible}.p1 *{visibility:inherit}')
-    } catch {
-      // 页面可能不支持执行脚本
+  // 海外优化：登录窗口的页面加载和表单提交走配置的代理。
+  // 代理不可达时（如软件未启动却填了地址）自动回退直连/系统代理，避免整窗白屏
+  try {
+    if (config.proxy && (await isProxyAlive(config.proxy))) {
+      await session.defaultSession.setProxy({proxyRules: config.proxy.replace(/^https?:\/\//, '')})
+    } else {
+      if (config.proxy) {
+        showLoginWindowMessage(win, '配置的网络代理无法连接，本次登录已改用直连/系统代理')
+      }
+      // 未配置时跟随系统代理（默认行为）。不能强制 direct，否则会覆盖海外用户的系统级代理
+      await session.defaultSession.setProxy({mode: 'system'})
     }
+  } catch {
+    // 代理设置失败时按直连继续
   }
-  win.webContents.on('did-finish-load', applyHiding)
-  // 每次页面加载完成（含 JS 质挑战刷新后）注入覆盖版登录逻辑
+
+  // 每次页面加载完成（含 JS 质挑战刷新后）注入覆盖版登录逻辑。
+  // 不再注入隐藏 CSS：完整显示官网登录页，避免隐藏 CSS 在页面变化后把整窗变白
   win.webContents.on('did-finish-load', () => {
     try {
       if (!win || win.isDestroyed()) return
@@ -265,6 +265,37 @@ export const login = async () => {
     }
   }
 
+  // 登录后的鉴权跳转链中任何一步加载失败（accounts 域时通时断），都会表现为白屏的 chrome-error 页。
+  // 这里监听导航失败：自动用入口列表重新加载，恢复期间窗口显示提示而不是死页
+  let recovering = false
+  win.webContents.on('did-fail-load', async (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    if (!isMainFrame || recovering || loginDone) return
+    if (!win || win.isDestroyed()) return
+    // ERR_ABORTED 是页面自身 JS 跳转中断，不算失败
+    if (errorCode === -3) return
+    recovering = true
+    console.error('登录页导航失败:', errorCode, errorDescription, validatedURL)
+    try {
+      showLoginWindowMessage(win, `网络异常（${describeNetError(errorCode)}），正在自动重试...`)
+      for (const entry of loginEntries) {
+        try {
+          await win.loadURL(entry, {userAgent: uag})
+          recovering = false
+          return
+        } catch (reason: any) {
+          if (reason?.code === 'ERR_ABORTED') {
+            recovering = false
+            return
+          }
+        }
+      }
+      recovering = false
+      await showLoginErrorPage(win, errorCode)
+    } catch {
+      recovering = false
+    }
+  })
+
   let loadOk = false
   for (const entry of loginEntries) {
     try {
@@ -283,28 +314,112 @@ export const login = async () => {
 
   if (!loadOk) {
     // 所有登录入口都无法访问：显示明确错误，而不是留下死窗口
-    try {
-      if (win && !win.isDestroyed()) {
-        await win.loadURL(
-          'data:text/html;charset=utf-8,' +
-            encodeURIComponent(
-              `<body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:calc(100vh - 100px);">
-               <div style="text-align:center;color:#666;">
-                 <h2 style="color:#d46b08;">无法打开登录页</h2>
-                 <p>蓝奏云登录服务器（accounts.woozooo.com）当前无法访问，海外网络下较常见。</p>
-                 <p>请在 <b>设置 → 网络代理</b> 中配置可用的 HTTP 代理后重试；</p>
-                 <p>或稍后关闭本窗口重新点击「账号登录」。</p>
-               </div></body>`
-            )
-        )
-      }
-    } catch {
-      // 窗口可能已销毁
-    }
+    await showLoginErrorPage(win)
     return
   }
+}
 
-  await applyHiding()
+/** 探测代理端口是否存活（TCP 连通，3 秒超时）。只判断代理软件是否在运行 */
+const isProxyAlive = async (proxy: string) => {
+  try {
+    const parsed = new URL(proxy.includes('://') ? proxy : 'http://' + proxy)
+    const host = parsed.hostname || '127.0.0.1'
+    const port = parseInt(parsed.port || '80', 10)
+    return await new Promise<boolean>(resolve => {
+      const socket = net.connect({host, port})
+      const done = (ok: boolean) => {
+        socket.destroy()
+        resolve(ok)
+      }
+      socket.setTimeout(3000, () => done(false))
+      socket.once('connect', () => done(true))
+      socket.once('error', () => done(false))
+    })
+  } catch {
+    return false
+  }
+}
+
+/** 立即渲染的加载占位页（data: URL 秒开），避免登录窗口初始白屏 */
+const LOADING_PAGE_HTML =
+  'data:text/html;charset=utf-8,' +
+  encodeURIComponent(
+    `<body style="font-family:'Microsoft YaHei',sans-serif;background:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+     <div style="text-align:center;color:#888;">
+       <h3>正在打开登录页...</h3>
+       <p style="font-size:13px;">蓝奏云登录服务器时通时断，最多需要约 1 分钟</p>
+     </div></body>`
+  )
+
+/** 错误码转可读文案 */
+function describeNetError(errorCode: number) {
+  switch (errorCode) {
+    case -105:
+      return '域名解析失败'
+    case -7:
+      return '连接超时'
+    case -100:
+      return '连接被关闭'
+    case -109:
+      return '地址不可达'
+    case -118:
+      return '连接超时'
+    case -130:
+      return '代理连接失败'
+    case -200:
+      return '网络已断开'
+    default:
+      return `错误码 ${errorCode}`
+  }
+}
+
+/** 在登录窗口顶部显示一条持久提示（不自动消失） */
+function showLoginWindowMessage(win: Electron.BrowserWindow, text: string) {
+  try {
+    if (!win || win.isDestroyed()) return
+    win.webContents
+      .executeJavaScript(
+        `(() => {
+          let el = document.getElementById('__lz_login_msg')
+          if (!el) {
+            el = document.createElement('div')
+            el.id = '__lz_login_msg'
+            el.style.cssText = 'position:fixed;top:0;left:0;right:0;visibility:visible!important;background:#fff7e6;border-bottom:1px solid #ffd591;color:#ad6800;padding:10px 16px;font-size:14px;z-index:99999;text-align:center;'
+            ;(document.body || document.documentElement).appendChild(el)
+          }
+          el.innerText = ${JSON.stringify(text)}
+          el.style.display = 'block'
+        })()`
+      )
+      .catch(() => {})
+  } catch {
+    // 窗口可能已销毁
+  }
+}
+
+/** 登录入口全部失败时显示的错误说明页 */
+const showLoginErrorPage = async (win: Electron.BrowserWindow, errorCode?: number) => {
+  try {
+    if (!win || win.isDestroyed()) return
+    const reason = errorCode ? describeNetError(errorCode) : '网络无法访问'
+    await win.webContents.executeJavaScript(
+      `document.open(); document.write(${JSON.stringify(
+        `<body style="font-family:'Microsoft YaHei',sans-serif;background:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+         <div style="text-align:center;color:#666;max-width:520px;">
+           <h2 style="color:#d46b08;">无法打开登录页（${reason}）</h2>
+           <p>蓝奏云登录服务器（accounts.woozooo.com）当前无法访问，海外和国内网络都可能出现。</p>
+           <p style="text-align:left;background:#f6f6f6;padding:12px;border-radius:6px;">
+             解决办法：<br/>
+             1. 若在「设置 → 网络代理」填写了代理地址，请确认代理软件正在运行、地址正确；<br/>
+             2. 未配置代理时，打开你的代理软件的「系统代理」开关后重试；<br/>
+             3. 或稍后关闭本窗口，重新点击「账号登录」。
+           </p>
+         </div></body>`
+      )}); document.close();`
+    )
+  } catch {
+    // 窗口可能已销毁
+  }
 }
 
 export const logout = async () => {
