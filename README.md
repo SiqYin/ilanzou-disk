@@ -1,64 +1,45 @@
-<p align="center"><img src="docs/media/icon-full.png"/></p>
+# ilanzou-disk（蓝奏云优享盘）
 
-<p align="center">
-  <a href="https://github.com/chenhb23/lanzouyun-disk/releases"><img src="https://img.shields.io/github/v/release/chenhb23/lanzouyun-disk"/></a>
-  <a href="#"><img src="https://img.shields.io/github/release-date/chenhb23/lanzouyun-disk"/></a>
-</p>
+蓝奏云·优享版（ilanzou.com）的第三方 Windows 桌面客户端。基于 Electron + React 构建。
 
-## 蓝奏云盘
+> ⚠️ **本客户端对接的是蓝奏云「优享版」**（ilanzou.com，与手机 App 同账号体系）。
+> 如果你用的是「普通版」（lanzou.com / woozooo.com），请使用 [lanzouyun-disk](https://github.com/SiqYin/lanzouyun-disk)。
+> 两个产品的账号、文件、接口完全不互通。
 
-支持暗黑模式，支持 `Windows`, `macOS-x64` 和 `macOS-arm64` 平台。
+## 功能（v0.1.0）
 
-## 界面预览
+- **账号登录 / 注册**：原生界面，调用优享版官方接口（手机号 + 密码，注册支持短信验证码）
+- **我的网盘**：内嵌优享版官方网页版，支持文件列表、上传、下载、分享管理（登录态自动注入）
+- **分享链接解析**：粘贴 `https://www.ilanzou.com/s/xxx` 链接（支持提取码），列出文件并批量下载
+- **下载引擎**：多任务队列、暂停/恢复、进度显示、完成列表
+- **海外网络优化**：HTTP 代理支持（设置页配置），30 秒请求超时
 
-<img src='./docs/media/preview.png' />
+## 技术说明
 
-## 功能
+本项目通过逆向优享版网页端（Vue SPA）的公开接口实现，非官方客户端：
 
-* 主要功能
-  * [x] 暗黑模式
-  * [x] 文件夹和任意格式文件上传
-  * [x] 断点上传 / 下载
-  * [x] 文件分割 / 合并
-  * [x] 回收站
-  * [x] 链接解析
-  * [x] 同步网络资源或蓝奏云资源
-* 操作（支持文件和文件夹）
-  * [x] 多选
-  * [x] 编辑
-  * [x] 分享
-  * [x] 排序
-  * [x] 查找（当前页）
-* 批量操作（支持文件和文件夹）
-  * [x] 批量上传（支持拖动上传）
-  * [x] 批量下载
-  * [x] 批量移动
-  * [x] 批量删除
-  * [x] 批量分享
-  * [x] 批量设置密码
+- API base：`apis.ilanzou.com`，RESTful JSON
+- 请求签名：AES-128-ECB（密钥取自官方前端代码 `lanZouY-disk-app`），输出大写 hex
+- 登录态：`appToken` 请求头
+- 详见 `src/common/ilz/` 源码
 
-## 下载地址
+**声明**：本项目仅供学习交流与个人使用，请勿用于商业用途。所有接口权利归蓝奏云官方所有。若官方提出异议，本项目会及时停止维护。使用本项目产生的任何问题与作者无关。
 
-https://wwn.lanzouf.com/b01tpefuf 密码:4hol
+## 开发
 
-## 使用说明
+```bash
+yarn install
+yarn start        # 开发模式
+yarn build        # 构建渲染层 + 主进程
+cd app && yarn build   # 打包 Windows 安装包
+```
 
-App 操作方式尽量符合平时的使用习惯，详细说明，可移步 [wiki](./) (待编写)
+## 已知限制 / Roadmap
 
-## 问题 / 功能
+- [ ] 文件管理目前以内嵌网页方式提供，后续版本计划原生化（文件列表/上传/转存接口逆向中）
+- [ ] 登录后的接口参数细节（分页/排序字段）需要更多真实账号实测反馈
+- [ ] 优享版的「服务端转存」接口已定位（`/proved/file/transfer`），计划在原生文件管理中提供一键转存分享文件
 
-如发现软件的问题，或者有补充的功能，欢迎提 [issue](https://github.com/chenhb23/lanzouyun-disk/issues)。
+## 反馈
 
-## Changelog
-
-每个版本的更改都记录在 [release](https://github.com/chenhb23/lanzouyun-disk/releases) 中。
-
-## 支持
-
-- 点亮 star
-- [赞赏](https://raw.githubusercontent.com/chenhb23/demo/master/img/support.png)
-
-## 免责声明
-
-- 本程序为免费开源项目，旨在方便管理网盘文件及学习 `electron` 桌面应用的开发，使用时请遵守相关法律法规；
-- 在使用本程序之前，你应了解并承担相应的风险，使用本软件所造成的一切后果与本项目无关。
+登录或使用遇到问题时，请携带界面上的提示文字（含括号内的错误码）[提 Issue](https://github.com/SiqYin/ilanzou-disk/issues)。

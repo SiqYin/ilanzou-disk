@@ -1,73 +1,51 @@
 import {makeAutoObservable, computed} from 'mobx'
 import {persist} from 'mobx-persist'
+import {genUuid} from '../../common/ilz/crypto'
 
 type BaseProps<T> = Partial<Pick<T, {[P in keyof T]: T[P] extends (...args: any) => any ? never : P}[keyof T]>>
 
+export interface IlzUserInfo {
+  userId?: number | string
+  loginName?: string
+  userName?: string
+  [key: string]: any
+}
+
 export class Config {
   @computed get isLogin() {
-    return !!this.cookies.find(value => value.name === 'phpdisk_info')
+    return !!this.token
   }
 
-  // 是否完成配置文件的获取，包括用户信息，接口信息
   @computed get isComplete() {
-    return this.isLogin && !!this.more?.url
+    return this.isLogin
   }
 
-  // *** 网络配置 start ***
-  @persist('list') cookies: Electron.Cookie[] = []
-  @persist domain = '' // https://wwn.lanzouf.com
+  // *** 登录态 ***
+  @persist token = ''
+  @persist('object') userInfo: IlzUserInfo | null = null
 
-  // 解决文件上传问题
-  @persist referer = ''
-  @persist lastLogin = '' // "2022-04-23 21:03:29"
-  // @persist('list') supportList: string[] = [] // ['tar']
-  @persist verification = '' // 188****8888
-  @persist maxSize = '100m' // Math.floor(100000000 / 1024 / 1024) // 100M
-  @persist('object') more = {
-    url: '',
-    data: {vei: ''},
-  }
-  // 设置 prefixUrl
-  @persist lanzouUrl = ''
-
-  // 海外网络优化：HTTP 代理地址（如 http://127.0.0.1:7890），留空直连
+  // *** 网络配置 ***
+  // 设备标识（首次生成后持久化，与网页端 localStorage.uuid 同形）
+  @persist uuid = ''
+  // HTTP 代理地址（如 http://127.0.0.1:7890），留空跟随系统
   @persist proxy = ''
-  // 最近一次成功访问分享链接使用的 base 域名，下次解析优先尝试
-  @persist lastShareDomain = ''
-  // *** 网络配置 end ***
 
-  // *** 本地配置 start ***
-  splitSize = '100m'
-
-  // cookie 和 uag 匹配即可请求成功
+  // *** 本地配置 ***
   @persist userAgent =
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.5615.204 Safari/537.36'
-
-  // 是否默认此地址为下载路径
-  @persist setDefaultDownloadDir = false
-
-  // 文件下载位置
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
   @persist downloadDir = ''
-
-  // 主题
   @persist themeSource: Electron.NativeTheme['themeSource']
-
-  // 同时上传/下载数量
-  @persist uploadMax = 1
   @persist downloadMax = 2
-
-  // 上传流量警戒线
-  @persist uploadWarningSize = 7 // 单位 G
-  @persist uploadWarningEnabled = true
-  // *** 本地配置 end ***
+  @persist uploadMax = 1
 
   constructor() {
     makeAutoObservable(this)
+    if (!this.uuid) {
+      this.uuid = genUuid()
+    }
   }
 
-  // update 过滤空项
   update(data: BaseProps<Config>) {
-    // delete data.maxSize
     data = Object.keys(data).reduce((prev, key) => (data[key] ? {...prev, [key]: data[key]} : prev), {})
     if (Object.keys(data).length) {
       Object.assign(this, data)
@@ -75,17 +53,9 @@ export class Config {
   }
 
   clear() {
-    this.cookies = []
-    this.domain = ''
-    this.referer = ''
-    this.lastLogin = ''
-    this.verification = ''
-    this.more = {url: '', data: {vei: ''}}
+    this.token = ''
+    this.userInfo = null
   }
-
-  // set(data: BaseProps<Config>) {
-  //   Object.assign(this, data)
-  // }
 }
 
 export const config = new Config()

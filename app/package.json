@@ -1,17 +1,12 @@
 {
-  "name": "lanzouyun-disk",
-  "version": "4.0.5",
+  "name": "ilanzou-disk",
+  "version": "0.1.0",
   "private": true,
   "main": "build/main/index.js",
-  "description": "蓝奏云网盘客户端",
+  "description": "蓝奏云优享版第三方客户端",
   "author": {
-    "name": "chenhb23",
-    "url": "https://github.com/chenhb23"
-  },
-  "scripts": {
-    "start": "electron .",
-    "debug": "electron --inspect-brk=8889 .",
-    "build": "electron-builder -mw"
+    "name": "SiqYin",
+    "url": "https://github.com/SiqYin"
   },
   "keywords": [],
   "license": "ISC",
@@ -25,15 +20,15 @@
     "electron-builder": "^24.13.3"
   },
   "build": {
-    "productName": "蓝奏云盘",
-    "copyright": "更多内容到 https://github.com/chenhb23/lanzouyun-disk",
-    "appId": "org.chenhb23.lanzou",
+    "productName": "蓝奏云优享盘",
+    "copyright": "https://github.com/SiqYin/ilanzou-disk",
+    "appId": "com.siqyin.ilanzou",
     "asar": true,
     "publish": [
       {
         "provider": "github",
         "owner": "SiqYin",
-        "repo": "lanzouyun-disk"
+        "repo": "ilanzou-disk"
       }
     ],
     "files": [
@@ -50,8 +45,15 @@
       }
     },
     "win": {
-      "target": ["nsis", "zip"],
-      "artifactName": "lanzouyun-${version}-x64-win.${ext}"
+      "target": [
+        "nsis",
+        "zip"
+      ],
+      "artifactName": "ilanzou-${version}-x64-win.${ext}"
     }
+  },
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder -w"
   }
 }

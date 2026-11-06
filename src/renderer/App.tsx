@@ -1,17 +1,13 @@
-import React, {useMemo, useState} from 'react'
+import React, {useState} from 'react'
 import {observer} from 'mobx-react'
 import {shell} from '@electron/remote'
 import {Button, Input, Layout, Menu, Tabs, message} from 'antd'
 import {
   CheckCircleOutlined,
   CloudDownloadOutlined,
-  CloudUploadOutlined,
-  DeleteOutlined,
-  FolderOpenOutlined,
+  FileOutlined,
   LinkOutlined,
-  ScissorOutlined,
   SettingOutlined,
-  CloudSyncOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons'
 
@@ -19,33 +15,23 @@ import {
 import './App.less'
 import './component/Icon/lib/iconfont.js'
 
-import {download, upload} from './store'
+import {download} from './store'
 import {MyIcon} from './component/Icon'
+import Complete from './page/Complete'
 import pkg from '../../package.json'
-import project from '../project.config'
 import {Touchable} from './component/Touchable'
-import Upload from './page/Upload'
 import Files from './page/Files'
 import Download from './page/Download'
-import Complete from './page/Complete'
 import Parse from './page/Parse'
-import SplitMerge from './page/SplitMerge'
 import Setting from './page/Setting'
-import Sync from './page/Sync'
-import {sync} from './store/Sync'
 import {taskLength} from './utils/task'
-import {config} from './store/Config'
 import {linkBar} from './store/LinkBar'
 import AuthWrapper from './page/AuthWrapper'
 
 const App = observer(() => {
   const [activeKey, setActiveKey] = useState('1')
-  const [webviewKey, setWebviewKey] = useState(1)
   const [barUrl, setBarUrl] = useState('')
   const [barPwd, setBarPwd] = useState('')
-
-  const lanzouUrl = config.lanzouUrl
-  const recycleUrl = useMemo(() => (lanzouUrl ? new URL(project.page.recycle, lanzouUrl).href : ''), [lanzouUrl])
 
   // 全局链接栏提交：切换到解析页并自动解析
   const submitLinkBar = async () => {
@@ -62,7 +48,7 @@ const App = observer(() => {
       }
     }
     if (!url) {
-      return message.info('请输入分享链接')
+      return message.info('请输入优享版分享链接（https://www.ilanzou.com/s/...）')
     }
     linkBar.submit(url, barPwd)
     setActiveKey('5')
@@ -86,50 +72,25 @@ const App = observer(() => {
                   label: (
                     <Touchable
                       title={'去 GitHub 点亮 star'}
-                      onClick={() => shell.openExternal('https://github.com/chenhb23/lanzouyun-disk')}
+                      onClick={() => shell.openExternal('https://github.com/SiqYin/ilanzou-disk')}
                     >
                       <MyIcon iconName={'github'} style={{fontSize: 14}} className={'mr-1'} /> v{pkg.version}
                     </Touchable>
                   ),
-                  children: [
-                    {key: '1', label: '全部文件', icon: <FolderOpenOutlined />},
-                    {
-                      key: '7',
-                      label: (
-                        <span>
-                          回收站
-                          {activeKey === '7' && (
-                            <MyIcon
-                              className='refresh'
-                              iconName={'refresh'}
-                              onClick={() => setWebviewKey(prevState => prevState + 1)}
-                            >
-                              刷新
-                            </MyIcon>
-                          )}
-                        </span>
-                      ),
-                      icon: <DeleteOutlined />,
-                    },
-                  ],
+                  children: [{key: '1', label: '我的网盘', icon: <FileOutlined />}],
                 },
                 {
                   type: 'group',
                   label: '传输列表',
                   children: [
-                    {key: '9', label: `同步任务 ${taskLength(sync.list)}`, icon: <CloudSyncOutlined />},
-                    {key: '2', label: `正在上传 ${taskLength(upload.list)}`, icon: <CloudUploadOutlined />},
                     {key: '3', label: `正在下载 ${taskLength(download.list)}`, icon: <CloudDownloadOutlined />},
-                    {key: '4', label: `已完成`, icon: <CheckCircleOutlined />},
+                    {key: '4', label: '已完成', icon: <CheckCircleOutlined />},
                   ],
                 },
                 {
                   type: 'group',
                   label: '实用工具',
-                  children: [
-                    {key: '5', label: '解析 URL', icon: <LinkOutlined />},
-                    {key: '6', label: '文件分割 / 合并', icon: <ScissorOutlined />},
-                  ],
+                  children: [{key: '5', label: '解析分享链接', icon: <LinkOutlined />}],
                 },
                 {type: 'divider', style: {margin: '12px 0'}},
                 {key: '8', label: '设置', icon: <SettingOutlined />},
@@ -157,7 +118,7 @@ const App = observer(() => {
             size={'small'}
             allowClear
             value={barUrl}
-            placeholder={'粘贴蓝奏云分享链接，回车立即解析（链接打不开会自动尝试其他域名）'}
+            placeholder={'粘贴优享版分享链接（ilanzou.com/s/...），回车立即解析；链接打不开会自动重试'}
             onChange={event => setBarUrl(event.target.value)}
             onPressEnter={submitLinkBar}
             style={{maxWidth: 560}}
@@ -166,7 +127,7 @@ const App = observer(() => {
             size={'small'}
             allowClear
             value={barPwd}
-            placeholder={'密码，选填'}
+            placeholder={'提取码，选填'}
             onChange={event => setBarPwd(event.target.value)}
             onPressEnter={submitLinkBar}
             style={{width: 110}}
@@ -182,11 +143,6 @@ const App = observer(() => {
                 <Files />
               </AuthWrapper>
             </Tabs.TabPane>
-            <Tabs.TabPane key={'2'}>
-              <AuthWrapper>
-                <Upload />
-              </AuthWrapper>
-            </Tabs.TabPane>
             <Tabs.TabPane key={'3'}>
               <Download />
             </Tabs.TabPane>
@@ -196,21 +152,8 @@ const App = observer(() => {
             <Tabs.TabPane key={'5'}>
               <Parse />
             </Tabs.TabPane>
-            <Tabs.TabPane key={'6'}>
-              <SplitMerge />
-            </Tabs.TabPane>
-            <Tabs.TabPane key={'7'}>
-              <AuthWrapper>
-                <webview key={webviewKey} src={recycleUrl} style={{height: '100%'}} />
-              </AuthWrapper>
-            </Tabs.TabPane>
             <Tabs.TabPane key={'8'}>
               <Setting />
-            </Tabs.TabPane>
-            <Tabs.TabPane key={'9'}>
-              <AuthWrapper>
-                <Sync />
-              </AuthWrapper>
             </Tabs.TabPane>
           </Tabs>
         </Layout.Content>

@@ -10,7 +10,7 @@ import {message} from 'antd'
 import Task, {TaskStatus} from './AbstractTask'
 import {delay} from '../../common/util'
 import {config} from './Config'
-import {getDownloadDir} from '../page/Setting'
+
 import {DownloadSubTask, DownloadTask} from './task/DownloadTask'
 import {finish} from './Finish'
 
@@ -240,7 +240,7 @@ export class Download extends EventEmitter implements Task<DownloadTask> {
    * - 询问下载地址
    */
   async addTasks(tasks: DownloadTask[]) {
-    const dir = await getDownloadDir()
+    const dir = config.downloadDir
     let success = 0
     for (const task of tasks) {
       task.dir = dir

@@ -39,11 +39,11 @@ function initTray() {
       : path.join(__dirname, '..', 'icon.png')
     const image = nativeImage.createFromPath(icon)
     const tray = new Tray(image)
-    tray.setToolTip('蓝奏云盘')
+    tray.setToolTip('蓝奏云优享盘')
 
     const contextMenu = Menu.buildFromTemplate([
-      // {label: '显示蓝奏云盘', click: this.showWindow},
-      {label: '显示蓝奏云盘', click: main.showWindow},
+      // {label: '显示蓝奏云优享盘', click: this.showWindow},
+      {label: '显示蓝奏云优享盘', click: main.showWindow},
       {label: '退出', click: () => app.quit()},
     ])
     tray.on('click', main.showWindow)

@@ -1,4 +1,4 @@
-import config, {supportList} from '../project.config'
+import {supportList} from '../project.config'
 import type {Request} from 'got'
 
 export const delay = (ms = 1000) => new Promise(resolve => setTimeout(resolve, ms))
@@ -55,7 +55,7 @@ function randomItem(list: string[]) {
  * 例如: xxx.yyy
  */
 export function getSuffix() {
-  return `${randomItem(config.safeSuffixList)}.${randomItem(config.safeSuffixList)}`
+  return `${randomItem(supportList)}.${randomItem(supportList)}`
 }
 
 /**

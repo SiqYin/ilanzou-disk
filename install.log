@@ -1,0 +1,40 @@
+yarn install v1.22.22
+(node:31152) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[1/4] Resolving packages...
+[2/4] Fetching packages...
+[3/4] Linking dependencies...
+warning "@craco/craco > autoprefixer@10.4.19" has unmet peer dependency "postcss@^8.1.0".
+warning " > @testing-library/react@16.0.0" has unmet peer dependency "@testing-library/dom@^10.0.0".
+warning " > @testing-library/user-event@14.5.2" has unmet peer dependency "@testing-library/dom@>=7.21.4".
+warning " > @typescript-eslint/eslint-plugin@7.17.0" has unmet peer dependency "eslint@^8.56.0".
+warning "@typescript-eslint/eslint-plugin > @typescript-eslint/type-utils@7.17.0" has unmet peer dependency "eslint@^8.56.0".
+warning "@typescript-eslint/eslint-plugin > @typescript-eslint/utils@7.17.0" has unmet peer dependency "eslint@^8.56.0".
+warning "@typescript-eslint/eslint-plugin > @typescript-eslint/utils > @eslint-community/eslint-utils@4.4.0" has unmet peer dependency "eslint@^6.0.0 || ^7.0.0 || >=8.0.0".
+warning " > @typescript-eslint/parser@7.17.0" has unmet peer dependency "eslint@^8.56.0".
+warning "craco-less > less-loader@11.1.4" has unmet peer dependency "webpack@^5.0.0".
+warning "electron-builder > app-builder-lib@24.13.3" has unmet peer dependency "electron-builder-squirrel-windows@24.13.3".
+warning " > eslint-config-prettier@8.10.0" has unmet peer dependency "eslint@>=7.0.0".
+warning " > eslint-plugin-prettier@4.2.1" has unmet peer dependency "eslint@>=7.28.0".
+warning " > eslint-plugin-react@7.35.0" has unmet peer dependency "eslint@^3 || ^4 || ^5 || ^6 || ^7 || ^8 || ^9.7".
+warning " > eslint-plugin-react-hooks@4.6.2" has unmet peer dependency "eslint@^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0-0".
+warning "react-scripts > eslint-config-react-app > eslint-plugin-flowtype@8.0.3" has unmet peer dependency "@babel/plugin-syntax-flow@^7.14.5".
+warning "react-scripts > eslint-config-react-app > eslint-plugin-flowtype@8.0.3" has unmet peer dependency "@babel/plugin-transform-react-jsx@^7.14.9".
+[4/4] Building fresh packages...
+success Saved lockfile.
+$ electron-builder install-app-deps && cd app && yarn
+  • electron-builder  version=24.13.3
+  • public/electron.js not found. Please see https://medium.com/@kitze/%EF%B8%8F-from-react-to-an-electron-app-ready-for-production-a0468ecb1da3
+  • loaded parent configuration  preset=react-cra
+  • installing production dependencies  platform=win32 arch=x64 appDir=C:\Users\29736\.zcode\workspace\draft-adfcd309-154b-401a-a7c9-9cf3f531433f\ilanzou-disk\app
+yarn install v1.22.22
+(node:21636) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[1/4] Resolving packages...
+[2/4] Fetching packages...
+[3/4] Linking dependencies...
+warning "electron-builder > app-builder-lib@24.13.3" has unmet peer dependency "electron-builder-squirrel-windows@24.13.3".
+[4/4] Building fresh packages...
+Done in 2.09s.
+$ husky
+Done in 92.44s.

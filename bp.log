@@ -1,0 +1,11 @@
+yarn run v1.22.22
+(node:25628) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+$ C:\Users\29736\.zcode\workspace\draft-adfcd309-154b-401a-a7c9-9cf3f531433f\ilanzou-disk\app\node_modules\.bin\electron-builder -w --publish never -c.directories.output=dist
+  • electron-builder  version=24.13.3 os=10.0.26300
+  • loaded configuration  file=package.json ("build" field)
+  • packaging       platform=win32 arch=x64 electron=24.8.8 appOutDir=dist\win-unpacked
+  • building        target=zip arch=x64 file=dist\ilanzou-0.1.0-x64-win.zip
+  • building        target=nsis file=dist\ilanzou-0.1.0-x64-win.exe archs=x64 oneClick=true perMachine=false
+  • building block map  blockMapFile=dist\ilanzou-0.1.0-x64-win.exe.blockmap
+Done in 81.73s.
