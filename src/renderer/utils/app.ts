@@ -8,33 +8,51 @@ import project from '../../project.config'
  * - 官网页面用的是 2008 年的 jQuery 1.2.6，在新内核下 show() 失效，登录失败的提示用户根本看不到，
  *   且 jquery.js 加载失败时点击按钮会直接无反应（海外网络下很常见）
  * - 这里改用 fetch 提交登录请求，并用自定义悬浮提示显示所有登录反馈
+ * - ref 从页面地址动态提取：登录成功后的鉴权跳转依赖它，写错会导致登录成功却被弹回登录页
+ * - 提示元素挂在 .p1 内并显式可见：登录窗口注入了隐藏 .p1 之外内容的 CSS，挂到 body 上的提示不可见
  */
 const LOGIN_OVERRIDE_SCRIPT = `(() => {
   if (window.__lzLoginPatched) return 'already'
-  if (!document.getElementById('username') || !document.getElementById('s3')) return 'no-form'
+  const u = document.getElementById('username')
+  const p = document.getElementById('password')
+  const btn = document.getElementById('s3')
+  if (!u || !p || !btn) return 'no-form'
   window.__lzLoginPatched = true
 
-  const showToast = text => {
+  // ref 必须与进入登录页的域名一致（页面脚本按 URL 参数模板化），鉴权跳转依赖它
+  const ref =
+    new URLSearchParams(location.search).get('ref') ||
+    (() => {
+      const m = [...document.scripts].map(s => s.textContent).join('\\n').match(/var\\s+ref\\s*=\\s*['"]([^'"]+)['"]/)
+      return m && m[1]
+    })() ||
+    'up.woozooo.com'
+
+  const showToast = (text, ms) => {
     let el = document.getElementById('__lz_login_msg')
     if (!el) {
       el = document.createElement('div')
       el.id = '__lz_login_msg'
-      el.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#fff7e6;border:1px solid #ffd591;color:#ad6800;padding:8px 16px;border-radius:6px;font-size:14px;z-index:99999;box-shadow:0 2px 8px rgba(0,0,0,.15);display:none;'
-      document.body.appendChild(el)
+      // visibility:visible!important 对抗隐藏 .p1 之外内容的注入 CSS；挂在 .p1 内双保险
+      el.style.cssText =
+        'position:fixed;top:20px;left:50%;transform:translateX(-50%);visibility:visible!important;' +
+        'background:#fff7e6;border:1px solid #ffd591;color:#ad6800;padding:8px 16px;border-radius:6px;' +
+        'font-size:14px;z-index:99999;box-shadow:0 2px 8px rgba(0,0,0,.15);display:none;'
+      ;(document.querySelector('.p1') || document.body).appendChild(el)
     }
     el.innerText = text
     el.style.display = 'block'
     clearTimeout(el.__timer)
-    el.__timer = setTimeout(() => (el.style.display = 'none'), 6000)
+    el.__timer = setTimeout(() => (el.style.display = 'none'), ms || 8000)
   }
 
   window.uselogin = () => {
-    const username = document.getElementById('username').value
-    const password = document.getElementById('password').value
+    const username = u.value
+    const password = p.value
     if (!username) { showToast('请输入账户'); return false }
     if (password.length < 6) { showToast('请输入密码'); return false }
+    if (btn.disabled) return false
 
-    const btn = document.getElementById('s3')
     btn.disabled = true
     btn.value = '正在登录中...'
 
@@ -43,16 +61,41 @@ const LOGIN_OVERRIDE_SCRIPT = `(() => {
 
     fetch('/accounts.php', {
       method: 'POST',
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: 'task=uselogin&username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password) + '&ref=lanzou.com',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      credentials: 'same-origin',
+      referrer: location.href,
+      body:
+        'task=uselogin&username=' + encodeURIComponent(username) +
+        '&password=' + encodeURIComponent(password) +
+        '&ref=' + encodeURIComponent(ref),
       signal: controller.signal,
     })
-      .then(r => r.json())
-      .then(msg => {
+      .then(async r => {
         clearTimeout(timer)
+        const text = await r.text()
+        let msg
+        try {
+          msg = JSON.parse(text)
+        } catch (e) {
+          // 返回的不是 JSON，多为网络劫持/防护拦截页：刷新页面重新过质询（60s 内只自动重试一次）
+          const last = +sessionStorage.getItem('__lzLoginRetryAt') || 0
+          if (Date.now() - last > 60000) {
+            sessionStorage.setItem('__lzLoginRetryAt', String(Date.now()))
+            showToast('网络被拦截，正在刷新重试...', 5000)
+            setTimeout(() => location.reload(), 1500)
+          } else {
+            btn.disabled = false
+            btn.value = '登 录'
+            showToast('登录失败：网络被拦截，请检查网络或在软件设置中配置代理')
+          }
+          return
+        }
         if (msg.zt == '1') {
           btn.value = '登录成功，跳转中...'
-          showToast('登录成功')
+          showToast('登录成功', 5000)
           // 跳转中转鉴权页，之后由客户端监听 cookie 变化接管
           window.location.href = msg.msgs
         } else {
@@ -65,11 +108,11 @@ const LOGIN_OVERRIDE_SCRIPT = `(() => {
         clearTimeout(timer)
         btn.disabled = false
         btn.value = '登 录'
-        showToast('登录失败，网络异常请重试')
+        showToast('登录失败，网络异常或超时；若反复失败请在软件设置中配置代理')
       })
     return false
   }
-  return 'patched'
+  return 'patched:' + ref
 })()`
 
 export const login = async () => {
@@ -85,7 +128,8 @@ export const login = async () => {
     if (config.proxy) {
       await session.defaultSession.setProxy({proxyRules: config.proxy.replace(/^https?:\/\//, '')})
     } else {
-      await session.defaultSession.setProxy({mode: 'direct'})
+      // 未配置时跟随系统代理（默认行为）。不能强制 direct，否则会覆盖海外用户的系统级代理
+      await session.defaultSession.setProxy({mode: 'system'})
     }
   } catch {
     // 代理设置失败时按直连继续
@@ -212,7 +256,54 @@ export const login = async () => {
     return
   }
 
-  await win.loadURL(project.rootUrl + project.page.login, {userAgent: uag}).catch(() => {})
+  // 登录入口域名列表：登录最终都跳转到 accounts.woozooo.com 表单页，
+  // 该域名海外经常不可达。loadURL 失败时轮换入口重试，全部失败则显示明确错误页面
+  const loginEntries = [project.rootUrl + project.page.login]
+  for (const host of ['https://pc.woozooo.com', 'https://www.lanzou.com']) {
+    if (host !== project.rootUrl) {
+      loginEntries.push(host + project.page.login)
+    }
+  }
+
+  let loadOk = false
+  for (const entry of loginEntries) {
+    try {
+      await win.loadURL(entry, {userAgent: uag})
+      loadOk = true
+      break
+    } catch (reason: any) {
+      // ERR_ABORTED 是页面内部 JS 跳转（如登录后的鉴权链），不算失败
+      if (reason?.code === 'ERR_ABORTED') {
+        loadOk = true
+        break
+      }
+      console.error('登录页加载失败:', entry, reason?.code || reason?.message)
+    }
+  }
+
+  if (!loadOk) {
+    // 所有登录入口都无法访问：显示明确错误，而不是留下死窗口
+    try {
+      if (win && !win.isDestroyed()) {
+        await win.loadURL(
+          'data:text/html;charset=utf-8,' +
+            encodeURIComponent(
+              `<body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:calc(100vh - 100px);">
+               <div style="text-align:center;color:#666;">
+                 <h2 style="color:#d46b08;">无法打开登录页</h2>
+                 <p>蓝奏云登录服务器（accounts.woozooo.com）当前无法访问，海外网络下较常见。</p>
+                 <p>请在 <b>设置 → 网络代理</b> 中配置可用的 HTTP 代理后重试；</p>
+                 <p>或稍后关闭本窗口重新点击「账号登录」。</p>
+               </div></body>`
+            )
+        )
+      }
+    } catch {
+      // 窗口可能已销毁
+    }
+    return
+  }
+
   await applyHiding()
 }
 
